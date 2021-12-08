@@ -12,6 +12,7 @@ from ParseClassifier import avengers_assemble
 font = cv2.FONT_HERSHEY_SIMPLEX
 test = False
 # org
+timeout = 60
 org = (50, 50)
 
 # fontScale
@@ -112,7 +113,15 @@ if app_mode == 'About App':
           # About Me \n 
             My name is ** Rajat Jain ** . \n
             ''')
+
+
+
+
+
+
 elif app_mode == 'Shoulder Press':
+
+    start = time.time()
 
     st.set_option('deprecation.showfileUploaderEncoding', False)
 
@@ -141,7 +150,7 @@ elif app_mode == 'Shoulder Press':
     st.sidebar.markdown('---')
     detection_confidence = st.sidebar.slider('Min Detection Confidence', min_value=0.0, max_value=1.0, value=0.5)
     tracking_confidence = st.sidebar.slider('Min Tracking Confidence', min_value=0.0, max_value=1.0, value=0.5)
-
+    storage_queue = []
     st.sidebar.markdown('---')
 
     st.markdown(' ## Output')
@@ -156,9 +165,6 @@ elif app_mode == 'Shoulder Press':
             vid = cv2.VideoCapture(0)
         else:
             pass
-            # vid = cv2.VideoCapture(DEMO_VIDEO)
-            # tfflie.name = DEMO_VIDEO
-
     else:
         tfflie.write(video_file_buffer.read())
         vid = cv2.VideoCapture(tfflie.name)
@@ -166,7 +172,7 @@ elif app_mode == 'Shoulder Press':
     width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps_input = int(vid.get(cv2.CAP_PROP_FPS))
-
+    print('Done till here')
     # codec = cv2.VideoWriter_fourcc(*FLAGS.output_format)
     codec = cv2.VideoWriter_fourcc('V', 'P', '0', '9')
     out = cv2.VideoWriter('output1.mp4', codec, fps_input, (width, height))
@@ -196,12 +202,8 @@ elif app_mode == 'Shoulder Press':
 
     st.markdown("<hr/>", unsafe_allow_html=True)
 
-    with mp_face_mesh.FaceMesh(
-            min_detection_confidence=detection_confidence,
-            min_tracking_confidence=tracking_confidence,
-            max_num_faces=max_faces) as face_mesh:
+    with mp_pose.Pose(min_detection_confidence=detection_confidence, min_tracking_confidence=tracking_confidence) as face_mesh:
         prevTime = 0
-
         while vid.isOpened():
             i += 1
             ret, frame = vid.read()
@@ -236,40 +238,19 @@ elif app_mode == 'Shoulder Press':
                 pose_classification = pose_classifier(pose_landmarks)
                 pose_classification_filtered = pose_classification_filter(pose_classification)
                 print(pose_classification_filtered)
-
-                if len(pose_classification_filtered) == 2:
-                    if test:
-
-                        if (pose_classification_filtered['press_up'] > pose_classification_filtered['press_down']):
-
-                            if pose_classification_filtered['press_up'] < 9:
-                                z+=1
-                                im = cv2.putText(output_frame, str(pose_classification_filtered),org, font,
-                   fontScale, color, thickness, cv2.LINE_AA)
-                                cv2.imwrite('/Users/rajatjain/Desktop/wrong_poses/img_{}.jpg'.format(z), im)
-                                print('Wrong Pose')
-                                # st.image(output_frame)
-                        else:
-                            if pose_classification_filtered['press_down'] < 9:
-                                z+=1
-                                im = cv2.putText(output_frame, str(pose_classification_filtered),org, font,
-                   fontScale, color, thickness, cv2.LINE_AA)
-                                cv2.imwrite('/Users/rajatjain/Desktop/wrong_poses/img_{}.jpg'.format(z), im)
-                                print('Wrong Pose')
-                                # st.image(output_frame)
-                    else:
-                        pass
-
-                # Smooth classification using EMA.
-
                 # Count repetitions.
                 test, repetitions_count = repetition_counter(pose_classification_filtered)
+                print(repetitions_count)
+                outx = pose_classification_visualizer(
+                    frame=output_frame,
+                    pose_classification=pose_classification,
+                    pose_classification_filtered=pose_classification_filtered,
+                    repetitions_count=repetitions_count)
 
             currTime = time.time()
             fps = 1 / (currTime - prevTime)
             prevTime = currTime
             if record:
-                # st.checkbox("Recording", value=True)
                 out.write(frame)
             # Dashboard
             kpi1_text.write(f"<h1 style='text-align: center; color: red;'>{int(fps)}</h1>", unsafe_allow_html=True)
@@ -279,80 +260,85 @@ elif app_mode == 'Shoulder Press':
 
             frame = cv2.resize(output_frame, (0, 0), fx=0.8, fy=0.8)
             frame = image_resize(image=output_frame, width=640)
+            storage_queue.append(output_frame)
             stframe.image(output_frame, channels='BGR', use_column_width=True)
+
+            end = time.time()
+
+            if end - start > timeout:
+                vid.release()
+                cv2.destroyAllWindows()
+                break
 
     st.text('Video Processed')
 
-    output_video = open('output1.mp4', 'rb')
-    out_bytes = output_video.read()
-    st.video(out_bytes)
+    # output_video = open('output1.mp4', 'rb')
+    # out_bytes = output_video.read()
+    # st.video(out_bytes)
 
+
+    def merge(intervals):
+
+        intervals.sort(key=lambda x: x[0])
+
+        merged = []
+        for interval in intervals:
+            # if the list of merged intervals is empty or if the current
+            # interval does not overlap with the previous, simply append it.
+            if not merged or merged[-1][1] < interval[0]:
+                merged.append(interval)
+            else:
+                # otherwise, there is overlap, so we merge the current and previous
+                # intervals.
+                merged[-1][1] = max(merged[-1][1], interval[1])
+
+        return merged
+
+    x = []
+    class_name = 'press_down'
+    for classification in pose_classification_visualizer._pose_classification_filtered_history:
+        if classification is None:
+            x.append(None)
+        elif class_name in classification:
+            x.append(classification[class_name])
+        else:
+            x.append(0)
+
+    res = []
+
+    for i in range(len(x)):
+        window = 20
+        thresh = 8.5
+        area = x[i:i + window]
+        s = [True if el > thresh else False for el in area]
+        if sum(s) == len(s):
+            res.append([i, i + window])
+        else:
+            continue
+
+    intervals = merge(res)
+    # intervals.pop()
+
+
+    print(intervals)
+    print(len(storage_queue))
+    c = 0
+    pathx = '/Users/rajatjain/Desktop/blooper_reel/'
+    if len(intervals) == 0:
+        print('No Errors found')
+
+    for interval in intervals:
+        fail = storage_queue[interval[0]: interval[1] + 5]
+        c += 1
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        fail_video = cv2.VideoWriter(pathx+'fail_{}.mov'.format(c), cv2.VideoWriter_fourcc(*'mp4v'), 60,
+                                     (width, height))
+        for j in range(len(fail)):
+            fail_video.write(np.asarray(fail[j]))
+        fail_video.release()
+
+    print('Finally Done')
     vid.release()
     out.release()
+    st.stop()
 
-
-
-elif app_mode == 'Run on Image':
-
-    drawing_spec = mp_drawing.DrawingSpec(thickness=2, circle_radius=1)
-
-    st.sidebar.markdown('---')
-
-    st.markdown(
-        """
-        <style>
-        [data-testid="stSidebar"][aria-expanded="true"] > div:first-child {
-            width: 400px;
-        }
-        [data-testid="stSidebar"][aria-expanded="false"] > div:first-child {
-            width: 400px;
-            margin-left: -400px;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-    st.markdown("**Detected Faces**")
-    kpi1_text = st.markdown("0")
-    st.markdown('---')
-
-    max_faces = st.sidebar.number_input('Maximum Number of Faces', value=2, min_value=1)
-    st.sidebar.markdown('---')
-    detection_confidence = st.sidebar.slider('Min Detection Confidence', min_value=0.0, max_value=1.0, value=0.5)
-    st.sidebar.markdown('---')
-
-    img_file_buffer = st.sidebar.file_uploader("Upload an image", type=["jpg", "jpeg", 'png'])
-
-    if img_file_buffer is not None:
-        image = np.array(Image.open(img_file_buffer))
-
-    else:
-        demo_image = DEMO_IMAGE
-        image = np.array(Image.open(demo_image))
-
-    st.sidebar.text('Original Image')
-    st.sidebar.image(image)
-    face_count = 0
-    # Dashboard
-    with mp_face_mesh.FaceMesh(
-            static_image_mode=True,
-            max_num_faces=max_faces,
-            min_detection_confidence=detection_confidence) as face_mesh:
-
-        results = face_mesh.process(image)
-        out_image = image.copy()
-
-        for face_landmarks in results.multi_face_landmarks:
-            face_count += 1
-
-            # print('face_landmarks:', face_landmarks)
-
-            mp_drawing.draw_landmarks(
-                image=out_image,
-                landmark_list=face_landmarks,
-                connections=mp_face_mesh.FACE_CONNECTIONS,
-                landmark_drawing_spec=drawing_spec,
-                connection_drawing_spec=drawing_spec)
-            kpi1_text.write(f"<h1 style='text-align: center; color: red;'>{face_count}</h1>", unsafe_allow_html=True)
-        st.subheader('Output Image')
-        st.image(out_image, use_column_width=True)
