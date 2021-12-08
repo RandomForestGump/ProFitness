@@ -107,16 +107,16 @@ if app_mode == 'About App':
         """,
         unsafe_allow_html=True,
     )
-    st.video('https://www.youtube.com/watch?v=FMaNNXgB_5c&ab_channel=AugmentedStartups')
+    st.video('https://www.youtube.com/watch?v=YoVPBLgE3lQ')
 
     st.markdown('''
-          # About Me \n 
-            My name is ** Rajat Jain ** . \n
-            ''')
-
-
-
-
+              # About Me \n 
+                My name is ** Rajat Jain **  A Master's Student at SUNY Buffalo. \n
+                If you are interested in building more Computer Vision apps like this do go through Mediapipe, OPenCV, Streamlit and Kivy \n
+                Also check us out on Social Media
+                - [LinkedIn](https://www.linkedin.com/in/rajat-jain-b3b61194/)
+                - [Medium](https://medium.com/@rajat.jain1)
+                ''')
 
 
 elif app_mode == 'Shoulder Press':
@@ -146,44 +146,44 @@ elif app_mode == 'Shoulder Press':
         unsafe_allow_html=True,
     )
     # max faces
-    max_faces = st.sidebar.number_input('Maximum Number of Faces', value=1, min_value=1)
+    # max_faces = st.sidebar.number_input('Maximum Number of Faces', value=1, min_value=1)
     st.sidebar.markdown('---')
-    detection_confidence = st.sidebar.slider('Min Detection Confidence', min_value=0.0, max_value=1.0, value=0.5)
-    tracking_confidence = st.sidebar.slider('Min Tracking Confidence', min_value=0.0, max_value=1.0, value=0.5)
+    detection_confidence = st.sidebar.slider('Min Detection Confidence', min_value=0.0, max_value=1.0, value=0.6)
+    tracking_confidence = st.sidebar.slider('Min Tracking Confidence', min_value=0.0, max_value=1.0, value=0.6)
     storage_queue = []
     st.sidebar.markdown('---')
 
     st.markdown(' ## Output')
 
     stframe = st.empty()
-    video_file_buffer = st.sidebar.file_uploader("Upload a video", type=["mp4", "mov", 'avi', 'asf', 'm4v'])
-    tfflie = tempfile.NamedTemporaryFile(delete=False)
+    # video_file_buffer = st.sidebar.file_uploader("Upload a video", type=["mp4", "mov", 'avi', 'asf', 'm4v'])
+    # tfflie = tempfile.NamedTemporaryFile(delete=False)
     use_webcam= True
-    if not video_file_buffer:
-        if use_webcam:
-            print('Using_Webcam')
-            vid = cv2.VideoCapture(0)
-        else:
-            pass
+    # if not video_file_buffer:
+    if use_webcam:
+        print('Using_Webcam')
+        vid = cv2.VideoCapture(0)
     else:
-        tfflie.write(video_file_buffer.read())
-        vid = cv2.VideoCapture(tfflie.name)
+        pass
+    # else:
+    #     tfflie.write(video_file_buffer.read())
+    #     vid = cv2.VideoCapture(tfflie.name)
 
     width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps_input = int(vid.get(cv2.CAP_PROP_FPS))
-    print('Done till here')
-    # codec = cv2.VideoWriter_fourcc(*FLAGS.output_format)
-    codec = cv2.VideoWriter_fourcc('V', 'P', '0', '9')
+
+    codec = cv2.VideoWriter_fourcc(*'mp4v')
     out = cv2.VideoWriter('output1.mp4', codec, fps_input, (width, height))
 
-    st.sidebar.text('Input Video')
-    st.sidebar.video(tfflie.name)
+
+    # st.sidebar.text('Input Video')
+    # st.sidebar.video(tfflie.name)
     fps = 0
     i = 0
     drawing_spec = mp_drawing.DrawingSpec(thickness=2, circle_radius=2)
 
-    kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+    kpi1, kpi2, kpi3 = st.columns(3)
 
     with kpi1:
         st.markdown("**FrameRate**")
@@ -196,13 +196,12 @@ elif app_mode == 'Shoulder Press':
     with kpi3:
         st.markdown("**Image Width**")
         kpi3_text = st.markdown("0")
-    with kpi4:
-        st.markdown("**Wrong Counter**")
-        kpi3_text = st.markdown("0")
+
+
 
     st.markdown("<hr/>", unsafe_allow_html=True)
 
-    with mp_pose.Pose(min_detection_confidence=detection_confidence, min_tracking_confidence=tracking_confidence) as face_mesh:
+    with mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5) as face_mesh:
         prevTime = 0
         while vid.isOpened():
             i += 1
@@ -247,15 +246,24 @@ elif app_mode == 'Shoulder Press':
                     pose_classification_filtered=pose_classification_filtered,
                     repetitions_count=repetitions_count)
 
+            else:
+                print('Pose landmark is None')
+                pose_classification = None
+                pose_classification_filtered = pose_classification_filter(dict())
+                pose_classification_filtered = None
+
+                repetitions_count = repetition_counter.n_repeats
+
+
             currTime = time.time()
             fps = 1 / (currTime - prevTime)
             prevTime = currTime
             if record:
                 out.write(frame)
+
             # Dashboard
             kpi1_text.write(f"<h1 style='text-align: center; color: red;'>{int(fps)}</h1>", unsafe_allow_html=True)
             kpi2_text.write(f"<h1 style='text-align: center; color: red;'>{repetitions_count}</h1>", unsafe_allow_html=True)
-            kpi3_text.write(f"<h1 style='text-align: center; color: red;'>{width}</h1>", unsafe_allow_html=True)
             kpi3_text.write(f"<h1 style='text-align: center; color: red;'>{width}</h1>", unsafe_allow_html=True)
 
             frame = cv2.resize(output_frame, (0, 0), fx=0.8, fy=0.8)
@@ -272,9 +280,9 @@ elif app_mode == 'Shoulder Press':
 
     st.text('Video Processed')
 
-    # output_video = open('output1.mp4', 'rb')
-    # out_bytes = output_video.read()
-    # st.video(out_bytes)
+    output_video = open('output1.mp4', 'rb')
+    out_bytes = output_video.read()
+    st.video(out_bytes)
 
 
     def merge(intervals):
@@ -339,6 +347,6 @@ elif app_mode == 'Shoulder Press':
 
     print('Finally Done')
     vid.release()
-    out.release()
+    # out.release()
     st.stop()
 
