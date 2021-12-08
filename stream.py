@@ -9,10 +9,11 @@ from Utils.Visualizer import show_image
 from mediapipe.python.solutions import pose as mp_pose
 from ParseClassifier import avengers_assemble
 
+
 font = cv2.FONT_HERSHEY_SIMPLEX
 test = False
 # org
-timeout = 60
+timeout = 25
 org = (50, 50)
 
 # fontScale
@@ -273,16 +274,10 @@ elif app_mode == 'Shoulder Press':
 
             end = time.time()
 
-            if end - start > timeout:
+            if repetitions_count > 10:
                 vid.release()
                 cv2.destroyAllWindows()
                 break
-
-    st.text('Video Processed')
-
-    output_video = open('output1.mp4', 'rb')
-    out_bytes = output_video.read()
-    st.video(out_bytes)
 
 
     def merge(intervals):
@@ -346,7 +341,31 @@ elif app_mode == 'Shoulder Press':
         fail_video.release()
 
     print('Finally Done')
+
+    st.text('Video Processed')
+
+    kpi1, kpi2= st.columns(2)
+
+    with kpi1:
+        st.markdown("**Total Errors**")
+        kpi1_text = st.markdown("0")
+
+    with kpi2:
+        st.markdown("**Workout Result**")
+        kpi2_text = st.markdown("0")
+
+    flag = False
+    if len(intervals) == 0:
+        flag = True
+
+    kpi1_text.write(f"<h1 style='text-align: center; color: red;'>{int(len(intervals))}</h1>", unsafe_allow_html=True)
+
+    if flag:
+        kpi2_text.write(f"<h1 style='text-align: center; color: red;'>{str('Flawless Victory!')}</h1>", unsafe_allow_html=True)
+    else:
+        kpi2_text.write(f"<h1 style='text-align: center; color: red;'>{str('Fatality!')}</h1>", unsafe_allow_html=True)
+
+
     vid.release()
-    # out.release()
     st.stop()
 
